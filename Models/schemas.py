@@ -39,6 +39,7 @@ class ChatResponse(BaseModel):
     response: str
     context_used: bool
     timestamp: datetime
+    processing_time_ms: Optional[int] = None  # Round 2 latency tracking
 
 class ConversationSession(BaseModel):
     session_id: str
