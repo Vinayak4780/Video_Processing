@@ -12,13 +12,16 @@ class ConversationManager:
         self.logger = Logger()
         
         try:
-            # Initialize Groq client with the API key
+            # Direct initialization with just the API key
             self.client = Groq(api_key=api_key)
             self.model = model
             self.logger.info("Groq client initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize Groq client: {e}")
-            raise ValueError(f"Failed to initialize Groq client: {e}")
+            # Fallback to a simple mock client for development
+            self.logger.warning("Using fallback conversation manager")
+            self.client = None
+            self.model = model
         
         # Store active conversations
         self.conversations: Dict[str, ConversationSession] = {}
@@ -145,6 +148,10 @@ If asked about video content, refer to the provided video analysis data to give 
     def _generate_response(self, context: Dict, message: str, session: ConversationSession) -> str:
         """Generate response using Groq API"""
         try:
+            # Check if Groq client is available
+            if not self.client:
+                return self._generate_fallback_response(context, message)
+            
             # Prepare messages for Groq API
             messages = [
                 {"role": "system", "content": self.system_prompt}
@@ -180,19 +187,20 @@ Violations:
             # Add current message
             messages.append({"role": "user", "content": message})
             
-            # Generate response
+            # Generate response with timeout for sub-1000ms latency
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_tokens=1000,
-                temperature=0.7
+                max_tokens=500,  # Reduced for faster response
+                temperature=0.7,
+                timeout=2.0  # 2 second timeout for safety margin
             )
             
             return response.choices[0].message.content
             
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
-            return "I apologize, but I encountered an error while processing your message. Please try again."
+            return f"I encountered an error while processing your message. The video analysis is working, but there's a temporary issue with the chat response. Error: {str(e)[:100]}..."
     
     def get_conversation_history(self, session_id: str) -> List[Dict]:
         """Get conversation history for a session"""
@@ -219,3 +227,28 @@ Violations:
     def get_active_sessions(self) -> List[str]:
         """Get list of active session IDs"""
         return list(self.conversations.keys())
+    
+    def _generate_fallback_response(self, context: Dict, message: str) -> str:
+        """Generate a fallback response when Groq API is unavailable"""
+        if context["video_analysis"]:
+            video_info = context['video_analysis']
+            return f"""I can see your video analysis is complete! Here's what I found:
+
+📊 **Video Summary:**
+- File: {video_info['filename']}
+- Duration: {video_info['duration']:.2f} seconds
+- Events detected: {video_info['events_count']}
+- Violations found: {video_info['violations_count']}
+
+📝 **Analysis Summary:**
+{video_info['summary']}
+
+🚨 **Key Events:**
+{chr(10).join([f"- {event['timestamp']:.1f}s: {event['description']}" for event in video_info['key_events'][:3]])}
+
+⚠️ **Violations:**
+{chr(10).join([f"- {violation}" for violation in video_info['violations'][:3]])}
+
+Note: I'm currently using a simplified response system. For full AI chat capabilities, please check the Groq API configuration."""
+        else:
+            return "Hello! I'm your video analysis assistant. Please upload a video first to analyze traffic events and violations. The chat system is currently running in fallback mode."
