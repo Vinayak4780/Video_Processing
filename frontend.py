@@ -170,8 +170,8 @@ def process_video(uploaded_file):
             # Prepare file for upload
             files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
             
-            # Upload and process video
-            response = requests.post(f"{API_BASE_URL}/upload-video", files=files)
+            # Upload and process video using Round 2 optimized endpoint
+            response = requests.post(f"{API_BASE_URL}/upload-video-optimized", files=files)
             
             if response.status_code == 200:
                 result = response.json()
@@ -248,7 +248,7 @@ def send_message(message):
         }
         
         with st.spinner("🤔 Thinking..."):
-            response = requests.post(f"{API_BASE_URL}/chat", json=data)
+            response = requests.post(f"{API_BASE_URL}/chat-fast", json=data)
         
         if response.status_code == 200:
             result = response.json()
@@ -313,7 +313,7 @@ def show_video_summary():
         return
     
     try:
-        response = requests.get(f"{API_BASE_URL}/video-summary/{st.session_state.video_id}")
+        response = requests.get(f"{API_BASE_URL}/video-summary-cached/{st.session_state.video_id}")
         
         if response.status_code == 200:
             summary = response.json()
